@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>H2S Stock Analyzer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <style>
+        :root {
+            --orange: #e77d26;
+            --light: #ebf0f1;
+            --gray: #bec4c6;
+            --blue: #344a5e;
+            --dark: #222d40;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Segoe UI", sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--dark), var(--blue));
+            color: var(--light);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ===== Header ===== */
+        header {
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(6px);
+        }
+
+        header h1 {
+            color: var(--orange);
+            letter-spacing: 1px;
+        }
+
+        header span {
+            color: var(--gray);
+            font-size: 14px;
+        }
+
+        /* ===== Main Section ===== */
+        main {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 40px 20px;
+        }
+
+        .analyzer-card {
+            background: var(--light);
+            color: var(--dark);
+            width: 100%;
+            max-width: 500px;
+            padding: 35px;
+            border-radius: 18px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .analyzer-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 30px 60px rgba(0,0,0,0.4);
+        }
+
+        .analyzer-card h2 {
+            text-align: center;
+            margin-bottom: 10px;
+            color: var(--blue);
+        }
+
+        .analyzer-card p {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+            color: #555;
+        }
+
+        /* ===== Inputs ===== */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 14px;
+            color: var(--blue);
+            font-weight: 600;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 1.5px solid var(--gray);
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--orange);
+            box-shadow: 0 0 0 3px rgba(231, 125, 38, 0.2);
+        }
+
+        /* ===== Button ===== */
+        .analyze-btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, var(--orange), #ff9f45);
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+        }
+
+        .analyze-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 25px rgba(231, 125, 38, 0.5);
+        }
+
+        .analyze-btn:active {
+            transform: scale(0.98);
+        }
+
+        /* ===== Footer ===== */
+        footer {
+            background: rgba(0,0,0,0.25);
+            color: var(--gray);
+            text-align: center;
+            padding: 15px 20px;
+            font-size: 13px;
+        }
+
+        footer span {
+            color: var(--orange);
+            font-weight: 600;
+        }
+
+        /* ===== Responsive ===== */
+        @media (max-width: 480px) {
+            .analyzer-card {
+                padding: 25px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<header>
+    <h1>H2S Stock Analyzer</h1>
+    <span>Smart • Fast • Educational</span>
+</header>
+
+<main>
+    <div class="analyzer-card">
+        <h2>Analyze a Stock</h2>
+        <p>Enter stock details to generate technical analysis insights</p>
+
+        <div class="form-group">
+            <label for="stock">Stock Name / Symbol</label>
+            <input type="text" id="stock" placeholder="e.g. TCS, RELIANCE, AAPL">
+        </div>
+
+        <div class="form-group">
+            <label for="start">Start Date</label>
+            <input type="date" id="start" onkeydown="return false;">
+        </div>
+
+        <div class="form-group">
+            <label for="end">End Date</label>
+            <input type="date" id="end" onkeydown="return false;">
+        </div>
+
+        <button class="analyze-btn" onclick="goToAnalysis()">
+            Go to Analyzed Data →
+        </button>
+    </div>
+</main>
+
+<footer>
+    ⚠️ <span>Disclaimer:</span> This stock analyzer is for educational purposes only.
+    It does not provide real-time data or financial advice.
+</footer>
+
+<script>
+    function goToAnalysis() {
+        // You can later pass query params here
+        // Example: analysis.html?stock=XYZ
+        window.location.href = "analysis.html";
+    }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Analysis Result | H2S Stock Analyzer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+:root {
+    --orange: #e77d26;
+    --light: #ebf0f1;
+    --gray: #bec4c6;
+    --blue: #344a5e;
+    --dark: #222d40;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: "Segoe UI", sans-serif;
+}
+
+body {
+    background: linear-gradient(135deg, var(--dark), var(--blue));
+    color: var(--light);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ===== Header ===== */
+header {
+    padding: 20px 40px;
+    background: rgba(0,0,0,0.25);
+    backdrop-filter: blur(6px);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+header h1 {
+    color: var(--orange);
+}
+
+header a {
+    text-decoration: none;
+    color: var(--gray);
+    font-size: 14px;
+    transition: 0.3s;
+}
+
+header a:hover {
+    color: var(--orange);
+}
+
+/* ===== Main ===== */
+main {
+    flex: 1;
+    padding: 40px 25px;
+}
+
+.title {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.title h2 {
+    font-size: 30px;
+    margin-bottom: 8px;
+}
+
+.title p {
+    color: var(--gray);
+    font-size: 14px;
+}
+
+/* ===== Rows ===== */
+.row {
+    display: flex;
+    justify-content: center;
+    gap: 25px;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+}
+
+/* ===== Cards ===== */
+.card {
+    background: var(--light);
+    color: var(--dark);
+    width: 280px;
+    border-radius: 18px;
+    padding: 25px;
+    text-align: center;
+    box-shadow: 0 15px 35px rgba(0,0,0,0.35);
+    transition: 0.35s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(120deg, transparent, rgba(231,125,38,0.18), transparent);
+    opacity: 0;
+    transition: opacity 0.4s;
+}
+
+.card:hover::before {
+    opacity: 1;
+}
+
+.card:hover {
+    transform: translateY(-8px) scale(1.02);
+    box-shadow: 0 30px 65px rgba(0,0,0,0.45);
+}
+
+.card h3 {
+    color: var(--blue);
+    margin-bottom: 12px;
+}
+
+.value {
+    font-size: 34px;
+    font-weight: 700;
+    color: var(--orange);
+    margin: 15px 0;
+}
+
+.desc {
+    font-size: 13px;
+    color: #555;
+}
+
+/* ===== Loading ===== */
+.loading {
+    height: 14px;
+    width: 70%;
+    margin: 10px auto 0;
+    border-radius: 10px;
+    background: linear-gradient(100deg, #ddd 40%, #f5f5f5 50%, #ddd 60%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
+}
+
+/* ===== Footer ===== */
+footer {
+    text-align: center;
+    padding: 15px;
+    font-size: 13px;
+    color: var(--gray);
+    background: rgba(0,0,0,0.25);
+}
+
+footer span {
+    color: var(--orange);
+    font-weight: 600;
+}
+
+/* ===== Responsive ===== */
+@media(max-width: 900px) {
+    .card {
+        width: 90%;
+        max-width: 340px;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<header>
+    <h1>H2S Analyzer</h1>
+    <a href="index.html">← Back to Input</a>
+</header>
+
+<main>
+    <div class="title">
+        <h2>Technical Indicators</h2>
+        <p>Demo values shown • Logic can be plugged from backend</p>
+    </div>
+
+    <!-- FIRST ROW (3 CARDS) -->
+    <div class="row">
+        <div class="card">
+            <h3>EMA</h3>
+            <div class="value" id="ema">—</div>
+            <div class="loading" id="emaLoad"></div>
+            <p class="desc">Exponential Moving Average</p>
+        </div>
+
+        <div class="card">
+            <h3>SMA</h3>
+            <div class="value" id="sma">—</div>
+            <div class="loading" id="smaLoad"></div>
+            <p class="desc">Simple Moving Average</p>
+        </div>
+
+        <div class="card">
+            <h3>RSI</h3>
+            <div class="value" id="rsi">—</div>
+            <div class="loading" id="rsiLoad"></div>
+            <p class="desc">Relative Strength Index</p>
+        </div>
+    </div>
+
+    <!-- SECOND ROW (2 CARDS) -->
+    <div class="row">
+        <div class="card">
+            <h3>Volatility</h3>
+            <div class="value" id="vol">—</div>
+            <div class="loading" id="volLoad"></div>
+            <p class="desc">Market Risk Measure</p>
+        </div>
+
+        <div class="card">
+            <h3>Support</h3>
+            <div class="value" id="support">—</div>
+            <div class="loading" id="supportLoad"></div>
+            <p class="desc">Strong Buying Zone</p>
+        </div>
+    </div>
+</main>
+
+<footer>
+    ⚠️ <span>Disclaimer:</span> Educational purpose only. No financial advice.
+</footer>
+
+<script>
+/*
+  DEMO DATA STRUCTURE
+  Your friend can replace this with:
+  - API fetch
+  - Flask / FastAPI JSON
+  - Python → C++ engine output
+*/
+
+setTimeout(() => {
+    update("ema", "152.34", "emaLoad");
+    update("sma", "148.90", "smaLoad");
+    update("rsi", "61.2", "rsiLoad");
+    update("vol", "2.85%", "volLoad");
+    update("support", "142.00", "supportLoad");
+}, 1800);
+
+function update(id, value, loader) {
+    document.getElementById(id).innerText = value;
+    document.getElementById(loader).style.display = "none";
+}
+</script>
+
+</body>
+</html>
