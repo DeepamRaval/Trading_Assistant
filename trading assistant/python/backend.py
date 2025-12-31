@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 # Use the new google.genai package (recommended)
-from google import genai
+from google.generativeai import genai
 
 # Initialize Firebase
 try:
