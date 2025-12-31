@@ -25,11 +25,17 @@ from engine import (
 
 # Initialize Firebase
 try:
-    cred = credentials.Certificate("python/serviceKey.json")
+    # Try relative path first (for local), then try absolute path
+    service_key_path = "serviceKey.json"
+    if not os.path.exists(service_key_path):
+        service_key_path = "python/serviceKey.json"
+    cred = credentials.Certificate(service_key_path)
     firebase_admin.initialize_app(cred)
 except ValueError:
     # App already initialized
     pass
+except Exception as e:
+    print(f"Warning: Could not initialize Firebase: {e}")
 db = firestore.client()
 
 # Initialize Gemini AI
@@ -338,4 +344,5 @@ def api_chat():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    port = int(os.environ.get('PORT', 5001))
+    app.run(debug=True, host='0.0.0.0', port=port)
