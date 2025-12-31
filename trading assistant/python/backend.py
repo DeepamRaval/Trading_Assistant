@@ -1,60 +1,94 @@
-import firebase_admin
-from firebase_admin import credentials, firestore
 from datetime import datetime
 import os
 from flask import Flask, render_template, request, jsonify, redirect, url_for
+
+# Try to import optional dependencies
 try:
     from flask_cors import CORS
     CORS_AVAILABLE = True
 except ImportError:
     CORS_AVAILABLE = False
-import numpy as np
-import pandas as pd
-import yfinance as yf
-# Use the new google.genai package (recommended)
-# from google.generativeai import genai
-import google.generativeai as genai
-# Import Python engine instead of C++ library
-from engine import (
-    calculate_volatility,
-    calculate_sma,
-    calculate_ema,
-    calculate_rsi,
-    find_support_resistance
-)
+    print("Warning: flask-cors not available, CORS disabled")
+
+try:
+    import numpy as np
+    import pandas as pd
+    import yfinance as yf
+except ImportError as e:
+    print(f"CRITICAL: Required packages not installed: {e}")
+    raise
+
+# Try to import Firebase (optional)
+try:
+    import firebase_admin
+    from firebase_admin import credentials, firestore
+    FIREBASE_AVAILABLE = True
+except ImportError:
+    FIREBASE_AVAILABLE = False
+    print("Warning: firebase-admin not available, Firebase features disabled")
+    firebase_admin = None
+    credentials = None
+    firestore = None
+
+# Try to import Gemini AI (optional)
+try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+    print("Warning: google-generativeai not available, AI features disabled")
+    genai = None
+
+# Import Python engine (required)
+try:
+    from engine import (
+        calculate_volatility,
+        calculate_sma,
+        calculate_ema,
+        calculate_rsi,
+        find_support_resistance
+    )
+except ImportError as e:
+    print(f"CRITICAL: Could not import engine module: {e}")
+    raise
 
 # Initialize Firebase (optional - don't crash if it fails)
 db = None
-try:
-    # Try relative path first (for local), then try absolute path
-    service_key_path = "serviceKey.json"
-    if not os.path.exists(service_key_path):
-        service_key_path = "python/serviceKey.json"
-    
-    if os.path.exists(service_key_path):
-        cred = credentials.Certificate(service_key_path)
-        try:
-            firebase_admin.initialize_app(cred)
-        except ValueError:
-            # App already initialized
-            pass
-        db = firestore.client()
-        print("Firebase initialized successfully")
-    else:
-        print("Warning: serviceKey.json not found, Firebase disabled")
-except Exception as e:
-    print(f"Warning: Could not initialize Firebase: {e}")
-    db = None
+if FIREBASE_AVAILABLE:
+    try:
+        # Try relative path first (for local), then try absolute path
+        service_key_path = "serviceKey.json"
+        if not os.path.exists(service_key_path):
+            service_key_path = "python/serviceKey.json"
+        
+        if os.path.exists(service_key_path):
+            cred = credentials.Certificate(service_key_path)
+            try:
+                firebase_admin.initialize_app(cred)
+            except ValueError:
+                # App already initialized
+                pass
+            db = firestore.client()
+            print("Firebase initialized successfully")
+        else:
+            print("Warning: serviceKey.json not found, Firebase disabled")
+    except Exception as e:
+        print(f"Warning: Could not initialize Firebase: {e}")
+        db = None
+else:
+    print("Firebase not available (package not installed)")
 
 # Initialize Gemini AI (optional - don't crash if it fails)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-if GEMINI_API_KEY:
+if GEMINI_AVAILABLE and GEMINI_API_KEY:
     try:
         genai.configure(api_key=GEMINI_API_KEY)
         print("Gemini AI configured successfully")
     except Exception as e:
         print(f"Warning: Could not configure Gemini AI: {e}")
-else:
+elif not GEMINI_AVAILABLE:
+    print("Gemini AI not available (package not installed)")
+elif not GEMINI_API_KEY:
     print("Warning: GEMINI_API_KEY not set, AI features will be disabled")
 
 # Initialize Flask
@@ -157,9 +191,8 @@ def analyze_stock(stock_symbol, date_from, date_to):
 
         # Generate AI explanation using Gemini (non-blocking - don't fail if it times out)
         ai_explanation = None
-        try:
-            # Only try Gemini if API key is available
-            if GEMINI_API_KEY:
+        if GEMINI_AVAILABLE and GEMINI_API_KEY:
+            try:
                 explanation_prompt = f"""Analyze this stock and provide a brief, professional trading explanation:
 
 Stock Analysis Summary:
@@ -180,12 +213,10 @@ Provide a concise 2-3 sentence explanation of why the signal is {final_signal}, 
                 model = genai.GenerativeModel("gemini-2.5-flash")
                 response = model.generate_content(explanation_prompt)
                 ai_explanation = response.text if hasattr(response, 'text') else str(response)
-            else:
-                print("GEMINI_API_KEY not set, skipping AI explanation")
-        except Exception as e:
-            # Don't fail the whole request if AI explanation fails
-            print(f"Error generating AI explanation (non-critical): {e}")
-            ai_explanation = None
+            except Exception as e:
+                # Don't fail the whole request if AI explanation fails
+                print(f"Error generating AI explanation (non-critical): {e}")
+                ai_explanation = None
 
         # Prepare chart data with OHLC (Open, High, Low, Close) for candlesticks
         window = min(90, len(prices))
@@ -255,6 +286,15 @@ Provide a concise 2-3 sentence explanation of why the signal is {final_signal}, 
 @app.route('/')
 def home():
     return render_template('index.html')
+
+@app.route('/health')
+def health():
+    """Health check endpoint"""
+    return jsonify({
+        "status": "ok",
+        "firebase": FIREBASE_AVAILABLE and db is not None,
+        "gemini": GEMINI_AVAILABLE and GEMINI_API_KEY is not None
+    }), 200
 
 
 @app.route('/chat')
@@ -345,6 +385,9 @@ def api_analyze():
 @app.route('/api/chat', methods=['POST'])
 def api_chat():
     """API endpoint for chat with Gemini AI"""
+    if not GEMINI_AVAILABLE or not GEMINI_API_KEY:
+        return jsonify({"error": "AI chat is not available. Gemini AI is not configured."}), 503
+    
     data = request.get_json()
     message = data.get('message', '')
     
@@ -352,12 +395,6 @@ def api_chat():
         return jsonify({"error": "Message is required"}), 400
     
     try:
-        # Use the new google.genai API
-        #response = gemini_client.models.generate_content(
-        #    model="gemini-2.5-flash",
-        #    contents=message
-        #)
-        #response_text = response.text
         model = genai.GenerativeModel("gemini-2.5-flash")
         response = model.generate_content(message)
         response_text = response.text
