@@ -113,32 +113,45 @@ def analyze_stock(stock_symbol, date_from, date_to):
     try:
         print(f"=== Starting analysis for {stock_symbol} from {date_from} to {date_to} ===")
         
-        # Validate dates are not in the future
+        # Validate and adjust dates - stock data only exists for past dates
         from datetime import date as date_class, timedelta
         try:
             date_from_obj = datetime.strptime(date_from, "%Y-%m-%d").date()
             date_to_obj = datetime.strptime(date_to, "%Y-%m-%d").date()
             today = date_class.today()
-            # Allow up to 1 day in future (for timezone differences)
-            max_future_date = today + timedelta(days=1)
             
-            if date_from_obj > max_future_date:
-                error_msg = f"Start date {date_from} is in the future. Please use a past date (today is {today.strftime('%Y-%m-%d')})"
-                print(f"ERROR: {error_msg}")
-                return None
-            
-            if date_to_obj > max_future_date:
-                print(f"WARNING: End date {date_to} is in the future, using today's date ({today.strftime('%Y-%m-%d')})")
+            # Auto-adjust future dates to today (markets haven't happened yet for future dates)
+            original_date_to = date_to
+            if date_to_obj > today:
+                print(f"INFO: End date {date_to} is in the future, adjusting to today ({today.strftime('%Y-%m-%d')})")
                 date_to = today.strftime("%Y-%m-%d")
                 date_to_obj = today
             
+            if date_from_obj > today:
+                print(f"INFO: Start date {date_from} is in the future, adjusting to 30 days ago")
+                date_from_obj = today - timedelta(days=30)
+                date_from = date_from_obj.strftime("%Y-%m-%d")
+            
             # Also check that from date is before to date
             if date_from_obj > date_to_obj:
-                error_msg = f"Start date {date_from} is after end date {date_to}"
-                print(f"ERROR: {error_msg}")
-                return None
+                # Swap them if reversed
+                print(f"INFO: Start date is after end date, swapping them")
+                date_from, date_to = date_to, date_from
+                date_from_obj, date_to_obj = date_to_obj, date_from_obj
             
-            print(f"Date validation passed: {date_from} to {date_to}")
+            # Ensure we have at least some data - don't go too far back
+            max_lookback = today - timedelta(days=365*5)  # 5 years max
+            if date_from_obj < max_lookback:
+                print(f"INFO: Start date too far back, limiting to 5 years ago")
+                date_from_obj = max_lookback
+                date_from = date_from_obj.strftime("%Y-%m-%d")
+            
+            # Log if dates were adjusted
+            original_date_from_str = date_from
+            if date_from != original_date_from_str or date_to != original_date_to:
+                print(f"Date adjusted: {date_from} to {date_to}")
+            
+            print(f"Using dates: {date_from} to {date_to}")
         except ValueError as ve:
             error_msg = f"Invalid date format: {ve}. Please use YYYY-MM-DD format"
             print(f"ERROR: {error_msg}")
