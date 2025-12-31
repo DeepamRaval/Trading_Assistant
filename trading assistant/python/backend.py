@@ -111,17 +111,45 @@ def internal_error(error):
 def analyze_stock(stock_symbol, date_from, date_to):
     """Analyze stock using Python engine and yfinance"""
     try:
-        print(f"Starting analysis for {stock_symbol} from {date_from} to {date_to}")
-        # Download stock data with error handling
+        print(f"=== Starting analysis for {stock_symbol} from {date_from} to {date_to} ===")
+        
+        # Validate dates are not in the future
+        from datetime import date as date_class
         try:
-            data = yf.download(stock_symbol, start=date_from, end=date_to, progress=False)
+            date_from_obj = datetime.strptime(date_from, "%Y-%m-%d").date()
+            date_to_obj = datetime.strptime(date_to, "%Y-%m-%d").date()
+            today = date_class.today()
+            
+            if date_from_obj > today:
+                print(f"ERROR: Start date {date_from} is in the future")
+                return None
+            if date_to_obj > today:
+                print(f"WARNING: End date {date_to} is in the future, using today's date")
+                date_to = today.strftime("%Y-%m-%d")
+        except ValueError as ve:
+            print(f"ERROR: Invalid date format: {ve}")
+            return None
+        
+        # Download stock data with error handling and timeout
+        print(f"Downloading data for {stock_symbol}...")
+        try:
+            data = yf.download(stock_symbol, start=date_from, end=date_to, progress=False, timeout=30)
+            print(f"Download complete. Data shape: {data.shape}")
         except Exception as e:
-            print(f"Error downloading data for {stock_symbol}: {e}")
+            print(f"ERROR downloading data for {stock_symbol}: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
             return None
         
         if data.empty:
-            print(f"No data available for {stock_symbol}")
+            print(f"ERROR: No data available for {stock_symbol} in date range {date_from} to {date_to}")
+            print("This could mean:")
+            print("  - Stock symbol is incorrect")
+            print("  - Date range has no trading days")
+            print("  - Market data is unavailable")
             return None
+        
+        print(f"Data downloaded successfully: {len(data)} rows")
         
         # Handle different column structures from yfinance
         # yfinance returns MultiIndex columns when downloading single symbol sometimes
@@ -177,8 +205,12 @@ def analyze_stock(stock_symbol, date_from, date_to):
                 return None
         
         if len(prices) == 0:
-            print(f"No price data available for {stock_symbol}")
+            print(f"ERROR: No price data extracted for {stock_symbol}")
+            print(f"Data columns: {data.columns.tolist()}")
             return None
+        
+        print(f"Price data extracted: {len(prices)} data points")
+        print(f"Price range: {prices.min():.2f} to {prices.max():.2f}")
         
         # Calculate technical indicators using Python engine
         vol = calculate_volatility(prices)
@@ -290,7 +322,9 @@ Provide a concise 2-3 sentence explanation of why the signal is {final_signal}, 
             }
         }
     except Exception as e:
-        print(f"Error analyzing stock: {e}")
+        print(f"CRITICAL ERROR analyzing stock {stock_symbol}: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 
@@ -361,16 +395,31 @@ def api_analyze():
         if not stock_symbol or not date_from or not date_to:
             return jsonify({"error": "Missing required parameters: stock, date_from, and date_to are required"}), 400
         
-        print(f"Analyzing stock: {stock_symbol} from {date_from} to {date_to}")
+        print(f"=== API Analyze Request ===")
+        print(f"Stock: {stock_symbol}, From: {date_from}, To: {date_to}")
         
         # Handle Indian stocks (add .NS suffix if not present)
+        original_symbol = stock_symbol
         if not '.' in stock_symbol:
             stock_symbol = f"{stock_symbol}.NS"
+            print(f"Converted {original_symbol} to {stock_symbol} (Indian stock)")
         
         result = analyze_stock(stock_symbol, date_from, date_to)
         
         if result is None:
-            return jsonify({"error": "Failed to analyze stock. Please check the symbol and dates. Make sure the stock symbol is correct and the date range contains trading data."}), 400
+            # Try without .NS suffix if it failed (might be US stock)
+            if stock_symbol.endswith('.NS') and original_symbol != stock_symbol:
+                print(f"Retrying with original symbol: {original_symbol}")
+                result = analyze_stock(original_symbol, date_from, date_to)
+            
+            if result is None:
+                error_msg = f"Failed to analyze stock '{original_symbol}'. "
+                error_msg += "Possible reasons: "
+                error_msg += "1) Stock symbol is incorrect, "
+                error_msg += "2) Date range has no trading data (check if dates are in the future), "
+                error_msg += "3) Market data unavailable. "
+                error_msg += f"Tried symbols: {original_symbol}, {stock_symbol}"
+                return jsonify({"error": error_msg}), 400
         
         return jsonify(result)
     except Exception as e:
