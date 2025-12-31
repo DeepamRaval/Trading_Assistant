@@ -452,7 +452,7 @@ def api_analyze():
         result = analyze_stock(stock_symbol, date_from, date_to)
         
         if result is None:
-                # Try without .NS suffix if it failed (might be US stock)
+            # Try without .NS suffix if it failed (might be US stock)
             if stock_symbol.endswith('.NS') and original_symbol != stock_symbol:
                 print(f"Retrying with original symbol: {original_symbol}")
                 result = analyze_stock(original_symbol, date_from, date_to)
@@ -461,17 +461,17 @@ def api_analyze():
                 # Check if dates are in the future
                 from datetime import date as date_class
                 try:
-                     date_from_obj = datetime.strptime(date_from, "%Y-%m-%d").date()
+                    date_from_obj = datetime.strptime(date_from, "%Y-%m-%d").date()
                     date_to_obj = datetime.strptime(date_to, "%Y-%m-%d").date()
                     today = date_class.today()
                         
                     if date_from_obj > today or date_to_obj > today:
                         error_msg = f"Dates are in the future! Today is {today.strftime('%Y-%m-%d')}. "
                         error_msg += f"You requested {date_from} to {date_to}. "
-                         error_msg += "Please use past dates (e.g., 2024-11-01 to 2024-12-01)"
+                        error_msg += "Please use past dates (e.g., 2024-11-01 to 2024-12-01)"
                         return jsonify({"error": error_msg}), 400
                 except:
-                     pass
+                    pass
                     
                 error_msg = f"Failed to analyze stock '{original_symbol}'. "
                 error_msg += "Possible reasons: "
