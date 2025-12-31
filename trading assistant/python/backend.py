@@ -114,20 +114,34 @@ def analyze_stock(stock_symbol, date_from, date_to):
         print(f"=== Starting analysis for {stock_symbol} from {date_from} to {date_to} ===")
         
         # Validate dates are not in the future
-        from datetime import date as date_class
+        from datetime import date as date_class, timedelta
         try:
             date_from_obj = datetime.strptime(date_from, "%Y-%m-%d").date()
             date_to_obj = datetime.strptime(date_to, "%Y-%m-%d").date()
             today = date_class.today()
+            # Allow up to 1 day in future (for timezone differences)
+            max_future_date = today + timedelta(days=1)
             
-            if date_from_obj > today:
-                print(f"ERROR: Start date {date_from} is in the future")
+            if date_from_obj > max_future_date:
+                error_msg = f"Start date {date_from} is in the future. Please use a past date (today is {today.strftime('%Y-%m-%d')})"
+                print(f"ERROR: {error_msg}")
                 return None
-            if date_to_obj > today:
-                print(f"WARNING: End date {date_to} is in the future, using today's date")
+            
+            if date_to_obj > max_future_date:
+                print(f"WARNING: End date {date_to} is in the future, using today's date ({today.strftime('%Y-%m-%d')})")
                 date_to = today.strftime("%Y-%m-%d")
+                date_to_obj = today
+            
+            # Also check that from date is before to date
+            if date_from_obj > date_to_obj:
+                error_msg = f"Start date {date_from} is after end date {date_to}"
+                print(f"ERROR: {error_msg}")
+                return None
+            
+            print(f"Date validation passed: {date_from} to {date_to}")
         except ValueError as ve:
-            print(f"ERROR: Invalid date format: {ve}")
+            error_msg = f"Invalid date format: {ve}. Please use YYYY-MM-DD format"
+            print(f"ERROR: {error_msg}")
             return None
         
         # Download stock data with error handling and timeout
@@ -406,20 +420,35 @@ def api_analyze():
         
         result = analyze_stock(stock_symbol, date_from, date_to)
         
-        if result is None:
-            # Try without .NS suffix if it failed (might be US stock)
-            if stock_symbol.endswith('.NS') and original_symbol != stock_symbol:
-                print(f"Retrying with original symbol: {original_symbol}")
-                result = analyze_stock(original_symbol, date_from, date_to)
-            
             if result is None:
-                error_msg = f"Failed to analyze stock '{original_symbol}'. "
-                error_msg += "Possible reasons: "
-                error_msg += "1) Stock symbol is incorrect, "
-                error_msg += "2) Date range has no trading data (check if dates are in the future), "
-                error_msg += "3) Market data unavailable. "
-                error_msg += f"Tried symbols: {original_symbol}, {stock_symbol}"
-                return jsonify({"error": error_msg}), 400
+                # Try without .NS suffix if it failed (might be US stock)
+                if stock_symbol.endswith('.NS') and original_symbol != stock_symbol:
+                    print(f"Retrying with original symbol: {original_symbol}")
+                    result = analyze_stock(original_symbol, date_from, date_to)
+                
+                if result is None:
+                    # Check if dates are in the future
+                    from datetime import date as date_class
+                    try:
+                        date_from_obj = datetime.strptime(date_from, "%Y-%m-%d").date()
+                        date_to_obj = datetime.strptime(date_to, "%Y-%m-%d").date()
+                        today = date_class.today()
+                        
+                        if date_from_obj > today or date_to_obj > today:
+                            error_msg = f"Dates are in the future! Today is {today.strftime('%Y-%m-%d')}. "
+                            error_msg += f"You requested {date_from} to {date_to}. "
+                            error_msg += "Please use past dates (e.g., 2024-11-01 to 2024-12-01)"
+                            return jsonify({"error": error_msg}), 400
+                    except:
+                        pass
+                    
+                    error_msg = f"Failed to analyze stock '{original_symbol}'. "
+                    error_msg += "Possible reasons: "
+                    error_msg += "1) Stock symbol is incorrect (try 'RELIANCE.NS' or 'TCS.NS' for Indian stocks), "
+                    error_msg += "2) Date range has no trading data, "
+                    error_msg += "3) Market data unavailable. "
+                    error_msg += f"Tried symbols: {original_symbol}, {stock_symbol}"
+                    return jsonify({"error": error_msg}), 400
         
         return jsonify(result)
     except Exception as e:
