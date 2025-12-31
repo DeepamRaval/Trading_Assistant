@@ -320,71 +320,28 @@ def analysis():
 
 @app.route('/add_expense', methods=['POST'])
 def add_expense():
-    """Handle form submission and redirect to analysis page"""
-    try:
-        print("=== /add_expense called ===")
-        print(f"Request method: {request.method}")
-        print(f"Request form: {dict(request.form)}")
-        
-        # Get form data
-        stock_name = request.form.get('stockName', '').strip()
-        date_from_str = request.form.get("dateFrom", '').strip()
-        date_to_str = request.form.get("dateTo", '').strip()
-        
-        print(f"Form data - stock: {stock_name}, from: {date_from_str}, to: {date_to_str}")
-        
-        # Validate input
-        if not stock_name or not date_from_str or not date_to_str:
-            print("Missing required fields")
-            return render_template('index.html', error="Please fill in all fields"), 200
-        
-        # Parse dates
-        try:
-            dateFrom = datetime.strptime(date_from_str, "%Y-%m-%d")
-            dateTo = datetime.strptime(date_to_str, "%Y-%m-%d")
-            print(f"Dates parsed successfully: {dateFrom} to {dateTo}")
-        except ValueError as ve:
-            print(f"Date parsing error: {ve}")
-            return render_template('index.html', error=f"Invalid date format: {str(ve)}"), 200
-        
-        # Build redirect URL FIRST (before any blocking operations)
-        from urllib.parse import quote
-        redirect_url = f"/analysis?stock={quote(stock_name)}&date_from={quote(date_from_str)}&date_to={quote(date_to_str)}"
-        print(f"Redirecting to: {redirect_url}")
-        
-        # Save to Firebase in background (non-blocking) - don't wait for it
-        # This prevents worker timeout
-        if db is not None:
-            try:
-                # Use a simple try-except without blocking
-                # Don't wait for Firebase - just attempt it
-                db.collection("TradingData").add({
-                    "stockName": stock_name,
-                    "dateFrom": dateFrom,
-                    "dateTo": dateTo
-                })
-                print(f"✓ Saved to Firebase: {stock_name}")
-            except Exception as firebase_error:
-                # Don't log as error - just continue
-                print(f"⚠ Firebase save skipped: {firebase_error}")
-        else:
-            print("ℹ Firebase not available, skipping database save")
-        
-        # Return redirect immediately - don't wait for anything
-        return redirect(redirect_url, code=302)
-        
-    except Exception as e:
-        print(f"❌ CRITICAL ERROR in add_expense: {str(e)}")
-        import traceback
-        error_trace = traceback.format_exc()
-        print(f"Full traceback:\n{error_trace}")
-        
-        # Return error page instead of crashing
-        try:
-            return render_template('index.html', error=f"An error occurred: {str(e)}"), 200
-        except:
-            # If even template rendering fails, return plain text
-            return f"Error: {str(e)}", 500
+    """Handle form submission and redirect to analysis page - SIMPLIFIED to prevent timeout"""
+    # Get form data - minimal processing
+    stock_name = request.form.get('stockName', '').strip()
+    date_from_str = request.form.get("dateFrom", '').strip()
+    date_to_str = request.form.get("dateTo", '').strip()
+    
+    # Quick validation
+    if not stock_name or not date_from_str or not date_to_str:
+        return render_template('index.html', error="Please fill in all fields"), 200
+    
+    # Build redirect URL immediately - no other processing
+    from urllib.parse import quote
+    redirect_url = f"/analysis?stock={quote(stock_name)}&date_from={quote(date_from_str)}&date_to={quote(date_to_str)}"
+    
+    # Return redirect IMMEDIATELY - no Firebase, no date parsing, nothing else
+    # Use Flask's redirect but with minimal overhead
+    response = redirect(redirect_url, code=302)
+    
+    # Skip Firebase entirely to prevent any blocking
+    # Firebase can be added back later if needed, but it's causing timeouts
+    
+    return response
 
 
 @app.route('/api/analyze', methods=['GET', 'POST'])
