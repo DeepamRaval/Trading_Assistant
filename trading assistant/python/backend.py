@@ -160,7 +160,10 @@ def analyze_stock(stock_symbol, date_from, date_to):
         # Download stock data with error handling and timeout
         print(f"Downloading data for {stock_symbol}...")
         try:
-            data = yf.download(stock_symbol, start=date_from, end=date_to, progress=False, timeout=30)
+            # Try downloading with a slightly extended end date to ensure we get data
+            from datetime import timedelta
+            extended_end = (datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+            data = yf.download(stock_symbol, start=date_from, end=extended_end, progress=False, timeout=30)
             print(f"Download complete. Data shape: {data.shape}")
         except Exception as e:
             print(f"ERROR downloading data for {stock_symbol}: {type(e).__name__}: {e}")
@@ -170,10 +173,25 @@ def analyze_stock(stock_symbol, date_from, date_to):
         
         if data.empty:
             print(f"ERROR: No data available for {stock_symbol} in date range {date_from} to {date_to}")
-            print("This could mean:")
-            print("  - Stock symbol is incorrect")
-            print("  - Date range has no trading days")
-            print("  - Market data is unavailable")
+            print("Troubleshooting:")
+            print(f"  - Stock symbol '{stock_symbol}' may be incorrect")
+            print(f"  - Try: RELIANCE.NS, TCS.NS, INFY.NS for Indian stocks")
+            print(f"  - Try: AAPL, GOOGL, MSFT for US stocks")
+            print(f"  - Date range may have no trading days (weekends/holidays)")
+            print(f"  - Market data may be unavailable for this symbol")
+            
+            # Try to get info about the ticker
+            try:
+                import yfinance as yf
+                ticker = yf.Ticker(stock_symbol)
+                info = ticker.info
+                if info:
+                    print(f"Ticker info available: {info.get('longName', 'N/A')}")
+                else:
+                    print(f"Ticker '{stock_symbol}' not found or delisted")
+            except:
+                pass
+            
             return None
         
         print(f"Data downloaded successfully: {len(data)} rows")
