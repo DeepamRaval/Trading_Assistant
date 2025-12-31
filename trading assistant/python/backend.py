@@ -13,8 +13,8 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 # Use the new google.genai package (recommended)
-from google.generativeai import genai
-
+# from google.generativeai import genai
+import google.generativeai as genai
 # Initialize Firebase
 try:
     cred = credentials.Certificate("python/serviceKey.json")
@@ -25,8 +25,9 @@ except ValueError:
 db = firestore.client()
 
 # Initialize Gemini AI
-GEMINI_API_KEY = "AIzaSyAVyNZR_h6RL8rVFJNY7FbqB0xIq6NxNzQ"
-gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+genai.configure(api_key=GEMINI_API_KEY)
 
 # Initialize Flask
 app = Flask(__name__)
@@ -178,10 +179,14 @@ Stock Analysis Summary:
 
 Provide a concise 2-3 sentence explanation of why the signal is {final_signal}, considering the technical indicators. Be professional and educational."""
             
-            response = gemini_client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=explanation_prompt
-            )
+            #response = gemini_client.models.generate_content(
+            #    model="gemini-2.5-flash",
+            #    contents=explanation_prompt
+            #)
+
+            model = genai.GenerativeModel("gemini-2.5-flash")
+            response = model.generate_content(explanation_prompt)
+            
             ai_explanation = response.text if hasattr(response, 'text') else str(response)
         except Exception as e:
             print(f"Error generating AI explanation: {e}")
@@ -332,12 +337,14 @@ def api_chat():
     
     try:
         # Use the new google.genai API
-        response = gemini_client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=message
-        )
+        #response = gemini_client.models.generate_content(
+        #    model="gemini-2.5-flash",
+        #    contents=message
+        #)
+        #response_text = response.text
+        model = genai.GenerativeModel("gemini-2.5-flash")
+        response = model.generate_content(message)
         response_text = response.text
-        
         if not response_text:
             return jsonify({"error": "Empty response from AI model"}), 500
         
