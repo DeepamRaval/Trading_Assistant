@@ -23,25 +23,39 @@ from engine import (
     find_support_resistance
 )
 
-# Initialize Firebase
+# Initialize Firebase (optional - don't crash if it fails)
+db = None
 try:
     # Try relative path first (for local), then try absolute path
     service_key_path = "serviceKey.json"
     if not os.path.exists(service_key_path):
         service_key_path = "python/serviceKey.json"
-    cred = credentials.Certificate(service_key_path)
-    firebase_admin.initialize_app(cred)
-except ValueError:
-    # App already initialized
-    pass
+    
+    if os.path.exists(service_key_path):
+        cred = credentials.Certificate(service_key_path)
+        try:
+            firebase_admin.initialize_app(cred)
+        except ValueError:
+            # App already initialized
+            pass
+        db = firestore.client()
+        print("Firebase initialized successfully")
+    else:
+        print("Warning: serviceKey.json not found, Firebase disabled")
 except Exception as e:
     print(f"Warning: Could not initialize Firebase: {e}")
-db = firestore.client()
+    db = None
 
-# Initialize Gemini AI
+# Initialize Gemini AI (optional - don't crash if it fails)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-# gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-genai.configure(api_key=GEMINI_API_KEY)
+if GEMINI_API_KEY:
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        print("Gemini AI configured successfully")
+    except Exception as e:
+        print(f"Warning: Could not configure Gemini AI: {e}")
+else:
+    print("Warning: GEMINI_API_KEY not set, AI features will be disabled")
 
 # Initialize Flask
 app = Flask(__name__)
@@ -266,16 +280,29 @@ def add_expense():
         dateFrom = datetime.strptime(date_from_str, "%Y-%m-%d")
         dateTo = datetime.strptime(date_to_str, "%Y-%m-%d")
         
-        # Save to Firebase
-        db.collection("TradingData").add({
-            "stockName": stock_name,
-            "dateFrom": dateFrom,
-            "dateTo": dateTo
-        })
+        # Save to Firebase (optional - don't fail if it doesn't work)
+        if db is not None:
+            try:
+                db.collection("TradingData").add({
+                    "stockName": stock_name,
+                    "dateFrom": dateFrom,
+                    "dateTo": dateTo
+                })
+                print(f"Saved to Firebase: {stock_name}")
+            except Exception as firebase_error:
+                print(f"Warning: Could not save to Firebase: {firebase_error}")
+                # Continue anyway - Firebase is optional
+        else:
+            print("Firebase not available, skipping database save")
         
         # Redirect to analysis page with stock symbol
         return redirect(url_for('analysis', stock=stock_name, date_from=date_from_str, date_to=date_to_str))
+    except ValueError as ve:
+        return render_template('index.html', error=f"Invalid date format: {str(ve)}")
     except Exception as e:
+        print(f"Error in add_expense: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return render_template('index.html', error=f"Error: {str(e)}")
 
 
