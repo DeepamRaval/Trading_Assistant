@@ -2,10 +2,10 @@ services:
   - type: web
     name: Trading_Assistant
     env: python
-    buildCommand: pip install -r ../requirements.txt
-    startCommand: gunicorn backend:app --bind 0.0.0.0:$PORT
+    buildCommand: pip install -r requirements.txt
+    startCommand: cd python && gunicorn backend:app --bind 0.0.0.0:$PORT
     envVars:
       - key: GEMINI_API_KEY
         sync: false
-    rootDir: trading assistant/python
+    rootDir: trading assistant
 
