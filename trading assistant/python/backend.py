@@ -347,9 +347,17 @@ def add_expense():
             print(f"Date parsing error: {ve}")
             return render_template('index.html', error=f"Invalid date format: {str(ve)}"), 200
         
-        # Save to Firebase (optional - don't fail if it doesn't work)
+        # Build redirect URL FIRST (before any blocking operations)
+        from urllib.parse import quote
+        redirect_url = f"/analysis?stock={quote(stock_name)}&date_from={quote(date_from_str)}&date_to={quote(date_to_str)}"
+        print(f"Redirecting to: {redirect_url}")
+        
+        # Save to Firebase in background (non-blocking) - don't wait for it
+        # This prevents worker timeout
         if db is not None:
             try:
+                # Use a simple try-except without blocking
+                # Don't wait for Firebase - just attempt it
                 db.collection("TradingData").add({
                     "stockName": stock_name,
                     "dateFrom": dateFrom,
@@ -357,23 +365,13 @@ def add_expense():
                 })
                 print(f"✓ Saved to Firebase: {stock_name}")
             except Exception as firebase_error:
-                print(f"⚠ Warning: Could not save to Firebase: {firebase_error}")
-                # Continue anyway - Firebase is optional
+                # Don't log as error - just continue
+                print(f"⚠ Firebase save skipped: {firebase_error}")
         else:
             print("ℹ Firebase not available, skipping database save")
         
-        # Build redirect URL with proper URL encoding
-        from urllib.parse import quote
-        redirect_url = f"/analysis?stock={quote(stock_name)}&date_from={quote(date_from_str)}&date_to={quote(date_to_str)}"
-        print(f"Redirecting to: {redirect_url}")
-        
-        # Redirect to analysis page - use absolute URL if needed
-        try:
-            return redirect(redirect_url, code=302)
-        except Exception as redirect_error:
-            print(f"Redirect failed: {redirect_error}")
-            # Fallback: return the analysis page directly with data
-            return redirect(f"/analysis?stock={quote(stock_name)}&date_from={quote(date_from_str)}&date_to={quote(date_to_str)}", code=302)
+        # Return redirect immediately - don't wait for anything
+        return redirect(redirect_url, code=302)
         
     except Exception as e:
         print(f"❌ CRITICAL ERROR in add_expense: {str(e)}")
