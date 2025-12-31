@@ -91,10 +91,21 @@ elif not GEMINI_AVAILABLE:
 elif not GEMINI_API_KEY:
     print("Warning: GEMINI_API_KEY not set, AI features will be disabled")
 
-# Initialize Flask
-app = Flask(__name__)
+# Initialize Flask with explicit template folder
+app = Flask(__name__, template_folder='templates')
 if CORS_AVAILABLE:
     CORS(app)  # Enable CORS for API endpoints
+
+# Add error handler for 500 errors
+@app.errorhandler(500)
+def internal_error(error):
+    print(f"500 Error: {error}")
+    import traceback
+    traceback.print_exc()
+    try:
+        return render_template('index.html', error="An internal server error occurred. Please try again."), 500
+    except:
+        return "Internal Server Error", 500
 
 
 def analyze_stock(stock_symbol, date_from, date_to):
@@ -309,16 +320,32 @@ def analysis():
 
 @app.route('/add_expense', methods=['POST'])
 def add_expense():
-    stock_name = request.form.get('stockName')
-    date_from_str = request.form.get("dateFrom")
-    date_to_str = request.form.get("dateTo")
-    
-    if not stock_name or not date_from_str or not date_to_str:
-        return render_template('index.html', error="Please fill in all fields")
-    
+    """Handle form submission and redirect to analysis page"""
     try:
-        dateFrom = datetime.strptime(date_from_str, "%Y-%m-%d")
-        dateTo = datetime.strptime(date_to_str, "%Y-%m-%d")
+        print("=== /add_expense called ===")
+        print(f"Request method: {request.method}")
+        print(f"Request form: {dict(request.form)}")
+        
+        # Get form data
+        stock_name = request.form.get('stockName', '').strip()
+        date_from_str = request.form.get("dateFrom", '').strip()
+        date_to_str = request.form.get("dateTo", '').strip()
+        
+        print(f"Form data - stock: {stock_name}, from: {date_from_str}, to: {date_to_str}")
+        
+        # Validate input
+        if not stock_name or not date_from_str or not date_to_str:
+            print("Missing required fields")
+            return render_template('index.html', error="Please fill in all fields"), 200
+        
+        # Parse dates
+        try:
+            dateFrom = datetime.strptime(date_from_str, "%Y-%m-%d")
+            dateTo = datetime.strptime(date_to_str, "%Y-%m-%d")
+            print(f"Dates parsed successfully: {dateFrom} to {dateTo}")
+        except ValueError as ve:
+            print(f"Date parsing error: {ve}")
+            return render_template('index.html', error=f"Invalid date format: {str(ve)}"), 200
         
         # Save to Firebase (optional - don't fail if it doesn't work)
         if db is not None:
@@ -328,22 +355,38 @@ def add_expense():
                     "dateFrom": dateFrom,
                     "dateTo": dateTo
                 })
-                print(f"Saved to Firebase: {stock_name}")
+                print(f"✓ Saved to Firebase: {stock_name}")
             except Exception as firebase_error:
-                print(f"Warning: Could not save to Firebase: {firebase_error}")
+                print(f"⚠ Warning: Could not save to Firebase: {firebase_error}")
                 # Continue anyway - Firebase is optional
         else:
-            print("Firebase not available, skipping database save")
+            print("ℹ Firebase not available, skipping database save")
         
-        # Redirect to analysis page with stock symbol
-        return redirect(url_for('analysis', stock=stock_name, date_from=date_from_str, date_to=date_to_str))
-    except ValueError as ve:
-        return render_template('index.html', error=f"Invalid date format: {str(ve)}")
+        # Build redirect URL with proper URL encoding
+        from urllib.parse import quote
+        redirect_url = f"/analysis?stock={quote(stock_name)}&date_from={quote(date_from_str)}&date_to={quote(date_to_str)}"
+        print(f"Redirecting to: {redirect_url}")
+        
+        # Redirect to analysis page - use absolute URL if needed
+        try:
+            return redirect(redirect_url, code=302)
+        except Exception as redirect_error:
+            print(f"Redirect failed: {redirect_error}")
+            # Fallback: return the analysis page directly with data
+            return redirect(f"/analysis?stock={quote(stock_name)}&date_from={quote(date_from_str)}&date_to={quote(date_to_str)}", code=302)
+        
     except Exception as e:
-        print(f"Error in add_expense: {str(e)}")
+        print(f"❌ CRITICAL ERROR in add_expense: {str(e)}")
         import traceback
-        traceback.print_exc()
-        return render_template('index.html', error=f"Error: {str(e)}")
+        error_trace = traceback.format_exc()
+        print(f"Full traceback:\n{error_trace}")
+        
+        # Return error page instead of crashing
+        try:
+            return render_template('index.html', error=f"An error occurred: {str(e)}"), 200
+        except:
+            # If even template rendering fails, return plain text
+            return f"Error: {str(e)}", 500
 
 
 @app.route('/api/analyze', methods=['GET', 'POST'])
