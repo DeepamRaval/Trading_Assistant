@@ -1,10 +1,16 @@
-from ctypes import CDLL, c_double, POINTER, c_int
 import numpy as np
 import pandas as pd
 import yfinance as yf
 from google import genai
 import os
 import time
+from engine import (
+    calculate_volatility,
+    calculate_sma,
+    calculate_ema,
+    calculate_rsi,
+    find_support_resistance
+)
 
 # Download stock data with retry logic and fallback symbols
 # Try Indian stocks first, then US stocks as fallback
@@ -93,35 +99,12 @@ if prices is None or len(prices) == 0:
 else:
     print(f"\nUsing stock data from: {successful_symbol}")
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-LIB_PATH = os.path.join(BASE_DIR, "..", "cpp", "engine.so")
-
-lib = CDLL(LIB_PATH)
-
-lib.calculate_volatility.argtypes = [POINTER(c_double), c_int]
-lib.calculate_volatility.restype = c_double
-
-lib.calculate_sma.argtypes = [POINTER(c_double), c_int]
-lib.calculate_sma.restype = c_double
-
-lib.calculate_ema.argtypes = [POINTER(c_double), c_int, c_double]
-lib.calculate_ema.restype = c_double
-
-lib.calculate_rsi.argtypes = [POINTER(c_double), c_int]
-lib.calculate_rsi.restype = c_double
-
-lib.find_support_resistance.argtypes = [POINTER(c_double), c_int,
-                                        POINTER(c_double), POINTER(c_double)]
-lib.find_support_resistance.restype = c_int
-
-
-
 # Calculate indicators with error handling
 try:
-    vol = lib.calculate_volatility(prices.ctypes.data_as(POINTER(c_double)), len(prices))
-    sma = lib.calculate_sma(prices.ctypes.data_as(POINTER(c_double)), len(prices))
-    ema = lib.calculate_ema(prices.ctypes.data_as(POINTER(c_double)), len(prices), 0.1)
-    rsi = lib.calculate_rsi(prices.ctypes.data_as(POINTER(c_double)), len(prices))
+    vol = calculate_volatility(prices)
+    sma = calculate_sma(prices)
+    ema = calculate_ema(prices, alpha=0.1)
+    rsi = calculate_rsi(prices)
     
     # Check for invalid values
     if np.isnan(vol) or np.isnan(sma) or len(prices) < 2:
@@ -134,22 +117,16 @@ except Exception as e:
     print(f"Error calculating indicators: {e}")
     exit(1)
 
-supports = np.zeros(len(prices), dtype=np.float64)
-resistances = np.zeros(len(prices), dtype=np.float64)
-sr_result = lib.find_support_resistance(prices.ctypes.data_as(POINTER(c_double)),
-                                        len(prices),
-                                        supports.ctypes.data_as(POINTER(c_double)),
-                                        resistances.ctypes.data_as(POINTER(c_double)))
-# Decode s and r
-num_supports = sr_result // 1000
-num_resistances = sr_result % 1000
+supports, resistances = find_support_resistance(prices)
+num_supports = len(supports)
+num_resistances = len(resistances)
 
 print("Volatility:", vol)
 print("SMA:", sma)
 print("EMA:", ema)
 print("RSI:", rsi)
-print("Supports:", supports[:num_supports])
-print("Resistances:", resistances[:num_resistances])
+print("Supports:", supports)
+print("Resistances:", resistances)
 
 def trendsignals(ema,sma):
     if ema > 1.01*sma:
