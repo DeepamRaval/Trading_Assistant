@@ -50,8 +50,9 @@ if CORS_AVAILABLE:
 
 
 def analyze_stock(stock_symbol, date_from, date_to):
-    """Analyze stock using C++ engine and yfinance"""
+    """Analyze stock using Python engine and yfinance"""
     try:
+        print(f"Starting analysis for {stock_symbol} from {date_from} to {date_to}")
         # Download stock data with error handling
         try:
             data = yf.download(stock_symbol, start=date_from, end=date_to, progress=False)
@@ -140,10 +141,12 @@ def analyze_stock(stock_symbol, date_from, date_to):
         final_signal = "BUY" if trend == "bullish" and rsi < 60 and risk != "High Risk" else \
                       ("SELL" if trend == "bearish" and rsi > 40 else "HOLD")
 
-        # Generate AI explanation using Gemini
+        # Generate AI explanation using Gemini (non-blocking - don't fail if it times out)
         ai_explanation = None
         try:
-            explanation_prompt = f"""Analyze this stock and provide a brief, professional trading explanation:
+            # Only try Gemini if API key is available
+            if GEMINI_API_KEY:
+                explanation_prompt = f"""Analyze this stock and provide a brief, professional trading explanation:
 
 Stock Analysis Summary:
 - Current Price: ₹{round(prices[-1], 2)}
@@ -159,18 +162,15 @@ Stock Analysis Summary:
 - Trading Signal: {final_signal}
 
 Provide a concise 2-3 sentence explanation of why the signal is {final_signal}, considering the technical indicators. Be professional and educational."""
-            
-            #response = gemini_client.models.generate_content(
-            #    model="gemini-2.5-flash",
-            #    contents=explanation_prompt
-            #)
-
-            model = genai.GenerativeModel("gemini-2.5-flash")
-            response = model.generate_content(explanation_prompt)
-            
-            ai_explanation = response.text if hasattr(response, 'text') else str(response)
+                
+                model = genai.GenerativeModel("gemini-2.5-flash")
+                response = model.generate_content(explanation_prompt)
+                ai_explanation = response.text if hasattr(response, 'text') else str(response)
+            else:
+                print("GEMINI_API_KEY not set, skipping AI explanation")
         except Exception as e:
-            print(f"Error generating AI explanation: {e}")
+            # Don't fail the whole request if AI explanation fails
+            print(f"Error generating AI explanation (non-critical): {e}")
             ai_explanation = None
 
         # Prepare chart data with OHLC (Open, High, Low, Close) for candlesticks
@@ -282,29 +282,37 @@ def add_expense():
 @app.route('/api/analyze', methods=['GET', 'POST'])
 def api_analyze():
     """API endpoint for stock analysis"""
-    if request.method == 'POST':
-        data = request.get_json()
-        stock_symbol = data.get('stock') or request.form.get('stock')
-        date_from = data.get('date_from') or request.form.get('dateFrom')
-        date_to = data.get('date_to') or request.form.get('dateTo')
-    else:
-        stock_symbol = request.args.get('stock')
-        date_from = request.args.get('date_from')
-        date_to = request.args.get('date_to')
-    
-    if not stock_symbol or not date_from or not date_to:
-        return jsonify({"error": "Missing required parameters"}), 400
-    
-    # Handle Indian stocks (add .NS suffix if not present)
-    if not '.' in stock_symbol:
-        stock_symbol = f"{stock_symbol}.NS"
-    
-    result = analyze_stock(stock_symbol, date_from, date_to)
-    
-    if result is None:
-        return jsonify({"error": "Failed to analyze stock. Please check the symbol and dates."}), 400
-    
-    return jsonify(result)
+    try:
+        if request.method == 'POST':
+            data = request.get_json() or {}
+            stock_symbol = data.get('stock') or request.form.get('stock')
+            date_from = data.get('date_from') or request.form.get('dateFrom')
+            date_to = data.get('date_to') or request.form.get('dateTo')
+        else:
+            stock_symbol = request.args.get('stock')
+            date_from = request.args.get('date_from')
+            date_to = request.args.get('date_to')
+        
+        if not stock_symbol or not date_from or not date_to:
+            return jsonify({"error": "Missing required parameters: stock, date_from, and date_to are required"}), 400
+        
+        print(f"Analyzing stock: {stock_symbol} from {date_from} to {date_to}")
+        
+        # Handle Indian stocks (add .NS suffix if not present)
+        if not '.' in stock_symbol:
+            stock_symbol = f"{stock_symbol}.NS"
+        
+        result = analyze_stock(stock_symbol, date_from, date_to)
+        
+        if result is None:
+            return jsonify({"error": "Failed to analyze stock. Please check the symbol and dates. Make sure the stock symbol is correct and the date range contains trading data."}), 400
+        
+        return jsonify(result)
+    except Exception as e:
+        print(f"Error in api_analyze: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
 
 
 @app.route('/api/chat', methods=['POST'])

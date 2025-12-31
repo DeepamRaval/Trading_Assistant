@@ -449,17 +449,35 @@ async function loadAnalysis() {
     document.getElementById('stockInfo').textContent = `Analyzing ${stock} from ${dateFrom} to ${dateTo}...`;
     
     try {
-        const response = await fetch(`/api/analyze?stock=${encodeURIComponent(stock)}&date_from=${dateFrom}&date_to=${dateTo}`);
+        // Create AbortController for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+        
+        const response = await fetch(`/api/analyze?stock=${encodeURIComponent(stock)}&date_from=${dateFrom}&date_to=${dateTo}`, {
+            signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}: ${response.statusText}` }));
+            document.getElementById('stockInfo').textContent = `Error: ${errorData.error || 'Failed to fetch analysis'}`;
+            document.getElementById('stockInfo').style.color = '#f44336';
+            return;
+        }
+        
         const data = await response.json();
         
         if (data.error) {
             document.getElementById('stockInfo').textContent = `Error: ${data.error}`;
+            document.getElementById('stockInfo').style.color = '#f44336';
             return;
         }
         
         // Update stock info
         document.getElementById('stockInfo').textContent =
             `${stock} • Current: ₹${data.current_price} • Trend: ${data.trend}`;
+        document.getElementById('stockInfo').style.color = '';
         
         // Update and display signal banner
         updateSignalBanner(data.signal, data.trend, data.rsi, data.risk);
@@ -489,7 +507,16 @@ async function loadAnalysis() {
 
     } catch (error) {
         console.error('Error:', error);
-        document.getElementById('stockInfo').textContent = 'Error loading analysis. Please try again.';
+        let errorMessage = 'Error loading analysis. ';
+        if (error.name === 'AbortError') {
+            errorMessage += 'Request timed out. The analysis is taking too long. Please try again or check your stock symbol and dates.';
+        } else if (error.message) {
+            errorMessage += error.message;
+        } else {
+            errorMessage += 'Please try again.';
+        }
+        document.getElementById('stockInfo').textContent = errorMessage;
+        document.getElementById('stockInfo').style.color = '#f44336';
     }
 }
 
