@@ -163,7 +163,7 @@ def analyze_stock(stock_symbol, date_from, date_to):
             # Try downloading with a slightly extended end date to ensure we get data
             from datetime import timedelta
             extended_end = (datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
-            data = yf.download(stock_symbol, start=date_from, end=extended_end, progress=False, timeout=30)
+            data = yf.download(stock_symbol, start=date_from, end=extended_end, progress=False)
             print(f"Download complete. Data shape: {data.shape}")
         except Exception as e:
             print(f"ERROR downloading data for {stock_symbol}: {type(e).__name__}: {e}")
